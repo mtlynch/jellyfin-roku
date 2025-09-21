@@ -16,7 +16,8 @@
     "undent": "1.0.0"
   },
   "scripts": {
-    "build": "npx rimraf build/ out/ && npx bsc --project bsconfig.json"
+    "build": "npx rimraf build/ out/ && npx bsc --project bsconfig.json",
+    "test": "npx bsc --project bsconfig-tests.json && roca --source build/source"
   },
   "repository": {
     "type": "git",
