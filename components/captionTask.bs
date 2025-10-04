@@ -3,6 +3,7 @@ import "pkg:/source/enums/CaptionMoveDirection.bs"
 import "pkg:/source/enums/MediaPlaybackState.bs"
 import "pkg:/source/enums/String.bs"
 import "pkg:/source/utils/config.bs"
+import "pkg:/source/utils/vtt.bs"
 
 sub init()
     m.top.playerState = MediaPlaybackState.STOPPED
@@ -16,7 +17,6 @@ sub init()
     m.captionList = []
     m.reader = createObject("roUrlTransfer")
     m.font = CreateObject("roSGNode", "Font")
-    m.tags = CreateObject("roRegex", "{\\an\d*}|&lt;.*?&gt;|<.*?>", "s")
 
     ' Caption Style
     m.fontSizeDict = { "Default": 60, "Large": 60, "Extra Large": 70, "Medium": 50, "Small": 40 }
@@ -51,7 +51,7 @@ sub fetchCaption()
     if url <> invalid
         m.reader.setUrl(url)
         text = m.reader.GetToString()
-        m.captionList = parseVTT(text)
+        m.captionList = vtt.parseVTT(text)
         m.captionTimer.control = "start"
     else
         m.captionTimer.control = "stop"
@@ -236,91 +236,4 @@ function processLineCue(captionLine as string, captionLineHeight as float) as in
     end if
 
     return calculatedPosition
-end function
-
-function isTime(text)
-    return text.right(1) = chr(31)
-end function
-
-function toMs(t)
-    t = t.replace(".", ":")
-    t = t.left(12)
-    timestamp = t.tokenize(":")
-    return 3600000 * timestamp[0].toint() + 60000 * timestamp[1].toint() + 1000 * timestamp[2].toint() + timestamp[3].toint()
-end function
-
-function extractStyles(lineData as string) as object
-    returnData = {
-        endTimestamp: "",
-        styles: {}
-    }
-
-    lineDataArray = lineData.split(" ")
-    returnData.endTimestamp = lineDataArray.shift()
-
-    for each style in lineDataArray
-        styleData = style.split(":")
-        returnData.styles.addreplace(styleData[0], styleData[1])
-    end for
-
-    return returnData
-end function
-
-function parseVTT(lines)
-    lines = lines.replace(" --> ", chr(31) + chr(10))
-    lines = lines.replace(": ", ":")
-
-    lines = lines.split(chr(10))
-    curStart = -1
-    curEnd = -1
-    entries = []
-
-    currentLine = []
-    entry = {}
-
-    isNewLine = false
-
-    for i = 0 to lines.count() - 1
-        if isTime(lines[i])
-            currentLine = []
-
-            curStart = toMs(lines[i])
-            lineData = extractStyles(lines[i + 1])
-            curEnd = toMs(lineData.LookupCI("endTimestamp"))
-            curstyles = chainLookup(lineData, "styles")
-            entry = { "start": curStart, "end": curEnd, "styles": curstyles, "id": `caption${i}` }
-            isNewLine = true
-
-            i += 1
-            continue for
-        end if
-
-        if isNewLine
-            trimmed = lines[i].trim()
-            finalText = m.tags.replaceAll(trimmed, "")
-
-            ' We reached a blank line
-            if isStringEqual(finalText, string.EMPTY)
-                entry.AddReplace("text", currentLine)
-                entries.push(entry)
-                isNewLine = false
-
-                continue for
-            end if
-
-            ' We're inside a text block
-            currentLine.push(finalText)
-
-            ' We reached the end of the file and it doesn't end with a blank line
-            if i = (lines.count() - 1)
-                entry.AddReplace("text", currentLine)
-                entries.push(entry)
-
-                exit for
-            end if
-
-        end if
-    end for
-
-    return entries
 end function

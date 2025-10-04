@@ -1,0 +1,95 @@
+import "pkg:/source/enums/String.bs"
+import "pkg:/source/utils/misc.bs"
+
+namespace vtt
+
+    function isTime(text)
+        return text.right(1) = chr(31)
+    end function
+
+    function toMs(t)
+        t = t.replace(".", ":")
+        t = t.left(12)
+        timestamp = t.tokenize(":")
+        return 3600000 * timestamp[0].toint() + 60000 * timestamp[1].toint() + 1000 * timestamp[2].toint() + timestamp[3].toint()
+    end function
+
+    function extractStyles(lineData as string) as object
+        returnData = {
+            endTimestamp: "",
+            styles: {}
+        }
+
+        lineDataArray = lineData.split(" ")
+        returnData.endTimestamp = lineDataArray.shift()
+
+        for each style in lineDataArray
+            styleData = style.split(":")
+            returnData.styles.addreplace(styleData[0], styleData[1])
+        end for
+
+        return returnData
+    end function
+
+    function parseVTT(lines)
+        tags = CreateObject("roRegex", "{\\an\d*}|&lt;.*?&gt;|<.*?>", "s")
+
+        lines = lines.replace(" --> ", chr(31) + chr(10))
+        lines = lines.replace(": ", ":")
+
+        lines = lines.split(chr(10))
+        curStart = -1
+        curEnd = -1
+        entries = []
+
+        currentLine = []
+        entry = {}
+
+        isNewLine = false
+
+        for i = 0 to lines.count() - 1
+            if vtt.isTime(lines[i])
+                currentLine = []
+
+                curStart = vtt.toMs(lines[i])
+                lineData = vtt.extractStyles(lines[i + 1])
+                curEnd = vtt.toMs(lineData.LookupCI("endTimestamp"))
+                curstyles = chainLookup(lineData, "styles")
+                entry = { "start": curStart, "end": curEnd, "styles": curstyles, "id": `caption${i}` }
+                isNewLine = true
+
+                i += 1
+                continue for
+            end if
+
+            if isNewLine
+                trimmed = lines[i].trim()
+                finalText = tags.replaceAll(trimmed, "")
+
+                ' We reached a blank line
+                if isStringEqual(finalText, string.EMPTY)
+                    entry.AddReplace("text", currentLine)
+                    entries.push(entry)
+                    isNewLine = false
+
+                    continue for
+                end if
+
+                ' We're inside a text block
+                currentLine.push(finalText)
+
+                ' We reached the end of the file and it doesn't end with a blank line
+                if i = (lines.count() - 1)
+                    entry.AddReplace("text", currentLine)
+                    entries.push(entry)
+
+                    exit for
+                end if
+
+            end if
+        end for
+
+        return entries
+    end function
+
+end namespace
