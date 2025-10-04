@@ -11,7 +11,27 @@ namespace vtt
         t = t.replace(".", ":")
         t = t.left(12)
         timestamp = t.tokenize(":")
-        return 3600000 * timestamp[0].toint() + 60000 * timestamp[1].toint() + 1000 * timestamp[2].toint() + timestamp[3].toint()
+
+        ' Time unit multipliers from right to left
+        multipliers = [
+            1,             ' milliseconds
+            1000,          ' seconds
+            1000 * 60,     ' minutes
+            1000 * 60 * 60 ' hours (60 * 60 * 1000ms)
+        ]
+
+        totalMs = 0
+        timestampIndex = timestamp.count() - 1
+        multipliersIndex = 0
+
+        ' Walk backwards through timestamp parts, applying multipliers
+        while timestampIndex >= 0 and multipliersIndex < multipliers.count()
+            totalMs = totalMs + (timestamp[timestampIndex].toint() * multipliers[multipliersIndex])
+            timestampIndex = timestampIndex - 1
+            multipliersIndex = multipliersIndex + 1
+        end while
+
+        return totalMs
     end function
 
     function extractStyles(lineData as string) as object
